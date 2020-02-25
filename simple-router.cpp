@@ -38,7 +38,26 @@ SimpleRouter::handlePacket(const Buffer& packet, const std::string& inIface)
   std::cerr << getRoutingTable() << std::endl;
 
   // FILL THIS IN
+  uint8_t* data = packet.data();
+  uint32_t len = packet.size();
 
+  uint16_t ethtype = ethertype(data);
+  ethernet_hdr* ehdr = (ethernet_hdr*)data;
+
+  Interface* outface = findIfaceByMac(ehdr->ether_dhost);
+  // if MAC address equals destination address (destination is router) or destination is broadcast address
+  if (strcmp(ehdr->ether_dhost, iface->addr.data()) == 0 || strcmp(ehdr->ether_dhost, "FF:FF:FF:FF:FF:FF") == 0) { 
+      if (ntohs(ehdr->ether_type) == ethertype_arp || ntohs(ehdr->ether_type) == ethertype_ip) { //ARP
+          sendPacket(packet, outface->name);
+      }
+     
+      else { //ignore anything else
+
+      }
+  }
+  else if {  // destination is not router or broadcast address
+
+  }
 }
 //////////////////////////////////////////////////////////////////////////
 //////////////////////////////////////////////////////////////////////////
