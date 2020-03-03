@@ -24,6 +24,7 @@ namespace simple_router {
 //////////////////////////////////////////////////////////////////////////
 //////////////////////////////////////////////////////////////////////////
 // IMPLEMENT THIS METHOD
+
 void
 SimpleRouter::handlePacket(const Buffer& packet, const std::string& inIface)
 {
@@ -44,19 +45,89 @@ SimpleRouter::handlePacket(const Buffer& packet, const std::string& inIface)
   uint16_t ethtype = ethertype(data);
   ethernet_hdr* ehdr = (ethernet_hdr*)data;
 
-  Interface* outface = findIfaceByMac(ehdr->ether_dhost);
+  size_t minlength = sizeof(ethernet_hdr);
+  if (length < minlength) {
+    fprintf(stderr, "ETHERNET header, insufficient length\n");
+    return;
+  }
+
   // if MAC address equals destination address (destination is router) or destination is broadcast address
   if (strcmp(ehdr->ether_dhost, iface->addr.data()) == 0 || strcmp(ehdr->ether_dhost, "FF:FF:FF:FF:FF:FF") == 0) { 
-      if (ntohs(ehdr->ether_type) == ethertype_arp || ntohs(ehdr->ether_type) == ethertype_ip) { //ARP
-          sendPacket(packet, outface->name);
-      }
-     
-      else { //ignore anything else
+      if ( ehdr->ether_type == htons(ethertype_arp) ) //ARP
+      {
+        minlength += sizeof(arp_hdr);
+        if (length < minlength)
+          fprintf(stderr, "ARP header, insufficient length\n");
+        else
+        {
+          const arp_hdr *hdr = reinterpret_cast<const arp_hdr*>(packet.data() + sizeof(ethernet_hdr));
+          const Interface* arp_iface = findIfaceByIp(hdr->tip);
+          if(hdr->op == htons(arp_op_request) && arp_iface) //if request correct, respond
+          {
+            //build response packet
+            Buffer response_packet(sizeof(ethernet_hdr)+ sizeof(arp_hdr));
 
-      }
-  }
-  else if {  // destination is not router or broadcast address
+            uint8_t* rp_buf = response_packet.data();
+            
+            //fill in ethernet header
+            ethernet_hdr* rep_ehdr = (ethernet_hdr*)rp_buf;
+            memcpy(rep_ehdr->ether_dhost, hdr->arp_sha, sizeof(hdr->arp_sha));
+            memcpy(rep_ehdr->ether_shost,arp_iface->addr,sizeof(arp_iface->addr));
+            rep_ehdr->ether_type = htons(ethertype_arp);
 
+            //fill in arp header
+            arp_hdr* rep_ahdr = (arp_hdr*)(rp_buf+sizeof(ethernet_hdr));
+            rep_ahdr->arp_hrd = htons(arp_hrd_ethernet);
+            rep_ahdr->arp_pro = htons(ethertype_ip);
+            rep_ahdr->arp_hln = 0x06;
+            rep_ahdr->arp_pln = 0x04;
+            rep_ahdr->arp_op = htons(arp_op_reply);
+            memcpy(rep_ahdr->arp_sha, arp_iface->addr, sizeof(arp_iface->addr));
+            rep_ahdr->arp_sip = arp_iface->ip;
+            memcpy(rep_ahdr->arp_tha, hdr->sha, sizeof(hdr->sha));
+            rep_ahdr->arp_tip = hdr->arp_sip;
+
+            //full send bAYYbEEEE
+            sendPacket(response_packet, arp_iface->name);
+          }
+          else if(hdr->op == htons(arp_op_reply)) //if receive reply
+          {
+            Buffer reply_madr(sizeof(hdr->sha));
+            uint8_t* rp_data = reply_madr.data();
+            memcpy(rp_data, hdr->sha, sizeof(hdr->sha));
+
+            std::shared_ptr<ArpRequest> arp_insert = m_arp.insertArpEntry(reply_madr,hdr->sip);
+            if(arp_insert) //proceed with handling
+            {
+              list<PendingPacket> packets = arp_insert->packets;
+              for(auto it = packets.begin(); it != packets.end(); it++){
+                std::shared_ptr<ArpEntry> arp_lookup = m_arp.lookup(it->ip);
+                if(arp_lookup) //if found in cache
+                {
+                  Buffer lookup_packet(sizeof(ethernet_hdr));
+                  uint8_t* l_buf = lookup_packet.data();
+                  ethernet_hdr* lookup_ehdr = (ethernet_hdr*)l_buf;
+                  //memcpy(lookup_ehdr->dhost,arp_lookup->,sizeof());
+                  //memcpy(lookup_ehdr->shost,,sizeof());
+
+                }
+                else //queue
+                {
+                  //h
+                }
+              }
+
+            }
+            else //queue received packet and start sending arp request to disover
+            {
+
+            }
+          }
+        }
+      } 
+      else if ( ehdr->ether_type == htons(ethertype_ip)) { //IP
+          
+      }
   }
 }
 //////////////////////////////////////////////////////////////////////////
