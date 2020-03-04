@@ -56,11 +56,13 @@ SimpleRouter::handlePacket(const Buffer& packet, const std::string& inIface)
       if ( ehdr->ether_type == htons(ethertype_arp) ) //ARP
       {
         minlength += sizeof(arp_hdr);
-        if (length < minlength)
+        if (length < minlength){
           fprintf(stderr, "ARP header, insufficient length\n");
+          return
+        }
         else
         {
-          const arp_hdr *hdr = reinterpret_cast<const arp_hdr*>(packet.data() + sizeof(ethernet_hdr));
+          const arp_hdr *hdr = (arp_hdr*)(packet.data() + sizeof(ethernet_hdr));
           const Interface* arp_iface = findIfaceByIp(hdr->tip);
           if(hdr->op == htons(arp_op_request) && arp_iface) //if request correct, respond
           {
@@ -101,32 +103,55 @@ SimpleRouter::handlePacket(const Buffer& packet, const std::string& inIface)
             {
               list<PendingPacket> packets = arp_insert->packets;
               for(auto it = packets.begin(); it != packets.end(); it++){
-                std::shared_ptr<ArpEntry> arp_lookup = m_arp.lookup(it->ip);
-                if(arp_lookup) //if found in cache
-                {
-                  Buffer lookup_packet(sizeof(ethernet_hdr));
-                  uint8_t* l_buf = lookup_packet.data();
-                  ethernet_hdr* lookup_ehdr = (ethernet_hdr*)l_buf;
-                  //memcpy(lookup_ehdr->dhost,arp_lookup->,sizeof());
-                  //memcpy(lookup_ehdr->shost,,sizeof());
+                uint8_t* pending_buff = it->packet.data();
+                ethernet_hdr* pending_ehdr = (ethernet_hdr*)pending_buff;
+                memcpy(pending_ehdr->ether_dhost, iface->addr.data() ,sizeof(iface->addr.data()));
+                memcpy(pending_ehdr->ether_shost, hdr->arp_sha,sizeof(hdr->arp_sha));
 
-                }
-                else //queue
-                {
-                  //h
-                }
+                sendPacket(it->packet, it->iface);
               }
-
-            }
-            else //queue received packet and start sending arp request to disover
-            {
-
-            }
+              m_arp.removeRequest(arp_insert);         
+            }   
           }
         }
       } 
       else if ( ehdr->ether_type == htons(ethertype_ip)) { //IP
-          
+        minlength += sizeof(ip_hdr);
+        if (length < minlength)
+        {
+          fprintf(stderr, "IP header, insufficient length\n");
+          return;
+        }
+        else
+        {
+          const ip_hdr *hdr = (ip_hdr*)(packet.data() + sizeof(ethernet_hdr));
+          uint16_t isum = hdr->ip_sum;
+          hdr->ip_sum = 0;
+          uint16_t csum = cksum(hdr, sizeof(ip_hdr));
+          if(isum != csum)
+          {
+            fprintf("IP header, checksum length error");
+            return;
+          }
+
+          Interface* ip_iface = findIfaceByIp(hdr->ip_src);
+          if(ip_iface) //destined for router, check if ICMP
+          {
+            if(hdr->ip_protocol == ip_protocol_icmp)
+            {
+
+            }
+            else
+            {
+              
+            }
+          }
+          else //not destined for router, forward
+          {
+
+          }
+
+        }
       }
   }
 }

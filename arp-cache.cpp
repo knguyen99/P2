@@ -32,7 +32,19 @@ ArpCache::periodicCheckArpRequestsAndCacheEntries()
 {
 
   // FILL THIS IN
+  //check valid
+  for(auto it = m_cacheEntries.begin(); it != m_cacheEntries.end();)
+  {
+    if((*it)->isValid == false)
+    {
+      it = m_cacheEntries.erase(it)
+      break;
+    }
+    it++;
+  }
 
+  //check for requests
+  
 }
 //////////////////////////////////////////////////////////////////////////
 //////////////////////////////////////////////////////////////////////////
