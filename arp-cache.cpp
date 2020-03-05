@@ -64,7 +64,16 @@ ArpCache::periodicCheckArpRequestsAndCacheEntries()
 			req_ehdr->ether_type = htons(ethertype_arp);
 
 			// create ARP req header
-			
+            arp_hdr* req_ahdr = (arp_hdr*)(req_buf + sizeof(ethernet_hdr));
+            req_ahdr->arp_hrd = htons(arp_hrd_ethernet);
+            req_ahdr->arp_pro = htons(ethertype_ip);
+            req_ahdr->arp_hln = 0x06;
+            req_ahdr->arp_pln = 0x04;
+            req_ahdr->arp_op = htons(arp_op_request);
+            memcpy(req_ahdr->arp_sha, iface->addr, sizeof(iface->addr));
+            req_ahdr->arp_sip = iface->ip;
+            memcpy(req_ahdr->arp_tha, ETHER_BROADCAST_ADDRESS, sizeof(ETHER_BROADCAST_ADDRESS));
+            req_ahdr->arp_tip = req->ip;
 		}
 		
 		for (auto cacheEntry : m_cacheEntries) {
