@@ -160,7 +160,24 @@ SimpleRouter::handlePacket(const Buffer& packet, const std::string& inIface)
             hdr->ip_sum = cksum(hdr, sizeof(ip_hdr));
 
             RoutingTableEntry rt_entry = m_routingTable.lookup(hdr->ip_dst);
+            if(!rt_entry)
+            {
+              return; //next hop not found
+            }
+            const Interface* next_iface = findIfaceByName(rt_entry.ifName);
+            if(!next_iface)
+            {
+              return; //next iface not found
+            }
+            std::shared_ptr<ArpEntry> next_arp = m_arp.lookup(rt_entry.gw);
+            if(next_arp) //forward packet
+            {
+              
+            }
+            else //cache packet adn send arp request
+            {
 
+            }
           }
 
         }
