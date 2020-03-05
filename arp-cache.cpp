@@ -38,9 +38,9 @@ ArpCache::periodicCheckArpRequestsAndCacheEntries()
 	for each request in queued requests :
 		handleRequest(request)
 		
-		for each cache entry in entries :
-			if not entry->isValid
-				record entry for removal
+	for each cache entry in entries :
+		if not entry->isValid
+			record entry for removal
 	remove all entries marked for removal
 */
 	std::list<std::shared_ptr<ArpEntry >> removeArpRequests;
@@ -100,15 +100,18 @@ ArpCache::periodicCheckArpRequestsAndCacheEntries()
         }
 
 
-		// record any invalid cache entries
-		for (auto cacheEntry : m_cacheEntries) {
-			if (!cacheEntry->isValid) {
-				removeArpRequests.push_back(cacheEntry); // record for removal
-			}
-		}
-  }
+
+    }
+
+    // record any invalid cache entries
+    for (auto cacheEntry : m_cacheEntries) {
+        if (!cacheEntry->isValid) {
+            removeArpRequests.push_back(cacheEntry); // record for removal
+        }
+    }
+
 	// remove entries marked for removal
-	for (auto removeMe = removeArpRequests.begin(); removeMe != removeArpRequests.end(); removeMe++) {
+	for (auto removeMe : removeArpRequests) {
 		m_cacheEntries.erase(removeMe);
 	}
 	/*
