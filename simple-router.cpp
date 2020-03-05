@@ -130,24 +130,36 @@ SimpleRouter::handlePacket(const Buffer& packet, const std::string& inIface)
           uint16_t csum = cksum(hdr, sizeof(ip_hdr));
           if(isum != csum)
           {
-            fprintf("IP header, checksum length error");
+            fprintf(stderr, "IP header, checksum length error");
             return;
           }
 
           Interface* ip_iface = findIfaceByIp(hdr->ip_src);
           if(ip_iface) //destined for router, check if ICMP
           {
-            if(hdr->ip_protocol == ip_protocol_icmp)
+            if(hdr->ip_protocol == ip_protocol_icmp) //if it carries ICMP, properly dispatch it 
             {
 
             }
-            else
+            else //if not return
             {
-              
+              return;
             }
           }
           else //not destined for router, forward
           {
+            hdr->ttl -= 1;
+            if(hdr->ttl <= 0) //ttl exceeded, send ICMP Time Exceeded 
+            {
+
+              return; 
+            }
+
+            //recompute checksum for datagram
+            hdr->ip_sum = 0;
+            hdr->ip_sum = cksum(hdr, sizeof(ip_hdr));
+
+            RoutingTableEntry rt_entry = m_routingTable.lookup(hdr->ip_dst);
 
           }
 
