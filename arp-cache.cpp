@@ -43,20 +43,21 @@ ArpCache::periodicCheckArpRequestsAndCacheEntries()
 				record entry for removal
 	remove all entries marked for removal
 */
-	std::list<std::shared_ptr<ArpRequest>> removeArpRequests;
-	for (auto& req : m_arpRequests) {
+	std::list<std::shared_ptr<ArpEntry >> removeArpRequests;
+    for (auto req = m_arpRequests.begin(); req != m_arpRequests.end();) {
 		
 		// handle request, by sending an arp request about once/second
 
-		//build arp request
+		//check if we've sent the request 5 times
 		if (req->nTimesSent < MAX_SENT_TIME) {
+            // build ARP request
 			Buffer request(sizeof(ethernet_hdr) + sizeof(arp_hdr));
 			uint8_t* req_buf = (uint8_t*) request.data();
 
 			// create ethernet header
 			ethernet_hdr* req_ehdr = (ethernet_hdr*)req_buf;
 			// get name of iface of first packet
-			std::string name = req->packets.front().iface;
+			std::string name = (*req)->packets.front().iface;
 			const Interface* iface = m_router.findIfaceByName(name);
 			const uint8_t ETHER_BROADCAST_ADDRESS = { 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF };
 			memcpy(req_ehdr->ether_dhost, ETHER_BROADCAST_ADDRESS , sizeof(ETHER_BROADCAST_ADDRESS));
@@ -73,14 +74,33 @@ ArpCache::periodicCheckArpRequestsAndCacheEntries()
             memcpy(req_ahdr->arp_sha, iface->addr, sizeof(iface->addr));
             req_ahdr->arp_sip = iface->ip;
             memcpy(req_ahdr->arp_tha, ETHER_BROADCAST_ADDRESS, sizeof(ETHER_BROADCAST_ADDRESS));
-            req_ahdr->arp_tip = req->ip;
+            req_ahdr->arp_tip = (*req)->ip;
 
 
             // send request 
             m_router.sendPacket(request, name);
 
+            // update time since last send
+            (*req)->timeSent = steady_clock::now();
+            (*req)->nTimesSent++;
+
+            // move to next request
+            req++;
 		}
-		
+
+        else { // remove the request 
+            // first remove all the packets
+            for (auto& pack = req->packets.begin(); pack != req->packets.end();) {
+                pack = req->packets.remove(pack);
+            }
+            // remove pending request from queue
+            removeRequest(*req);
+            
+            
+        }
+
+
+		// record any invalid cache entries
 		for (auto cacheEntry : m_cacheEntries) {
 			if (!cacheEntry->isValid) {
 				removeArpRequests.push_back(cacheEntry); // record for removal
