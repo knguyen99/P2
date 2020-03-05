@@ -74,6 +74,11 @@ ArpCache::periodicCheckArpRequestsAndCacheEntries()
             req_ahdr->arp_sip = iface->ip;
             memcpy(req_ahdr->arp_tha, ETHER_BROADCAST_ADDRESS, sizeof(ETHER_BROADCAST_ADDRESS));
             req_ahdr->arp_tip = req->ip;
+
+
+            // send request 
+            m_router.sendPacket(request, name);
+
 		}
 		
 		for (auto cacheEntry : m_cacheEntries) {
