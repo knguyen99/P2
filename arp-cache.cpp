@@ -33,6 +33,51 @@ ArpCache::periodicCheckArpRequestsAndCacheEntries()
 
   // FILL THIS IN
   //check valid
+
+/*
+	for each request in queued requests :
+		handleRequest(request)
+		
+		for each cache entry in entries :
+			if not entry->isValid
+				record entry for removal
+	remove all entries marked for removal
+*/
+	std::list<std::shared_ptr<ArpRequest>> removeArpRequests;
+	for (auto& req : m_arpRequests) {
+		
+		// handle request, by sending an arp request about once/second
+
+		//build arp request
+		if (req->nTimesSent < MAX_SENT_TIME) {
+			Buffer request(sizeof(ethernet_hdr) + sizeof(arp_hdr));
+			uint8_t* req_buf = (uint8_t*) request.data();
+
+			// create ethernet header
+			ethernet_hdr* req_ehdr = (ethernet_hdr*)req_buf;
+			// get name of iface of first packet
+			std::string name = req->packets.front().iface;
+			const Interface* iface = m_router.findIfaceByName(name);
+			const uint8_t ETHER_BROADCAST_ADDRESS = { 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF };
+			memcpy(req_ehdr->ether_dhost, ETHER_BROADCAST_ADDRESS , sizeof(ETHER_BROADCAST_ADDRESS));
+			memcpy(req_ehdr->ether_shost, iface->addr, sizeof(iface->addr));
+			req_ehdr->ether_type = htons(ethertype_arp);
+
+			// create ARP req header
+			
+		}
+		
+		for (auto cacheEntry : m_cacheEntries) {
+			if (!cacheEntry->isValid) {
+				removeArpRequests.push_back(cacheEntry); // record for removal
+			}
+		}
+  }
+	// remove entries marked for removal
+	for (auto removeMe = removeArpRequests.begin(); removeMe != removeArpRequests.end(); removeMe++) {
+		m_cacheEntries.erase(removeMe);
+	}
+	/*
   for(auto it = m_cacheEntries.begin(); it != m_cacheEntries.end();)
   {
     if((*it)->isValid == false)
@@ -42,8 +87,7 @@ ArpCache::periodicCheckArpRequestsAndCacheEntries()
     }
     it++;
   }
-
-  //check for requests
+  */
   
 }
 //////////////////////////////////////////////////////////////////////////

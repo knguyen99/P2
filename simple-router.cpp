@@ -50,9 +50,9 @@ SimpleRouter::handlePacket(const Buffer& packet, const std::string& inIface)
     fprintf(stderr, "ETHERNET header, insufficient length\n");
     return;
   }
-
+  const uint8_t ETHER_BROADCAST_ADDRESS = { 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF };
   // if MAC address equals destination address (destination is router) or destination is broadcast address
-  if (strcmp(ehdr->ether_dhost, iface->addr.data()) == 0 || strcmp(ehdr->ether_dhost, "FF:FF:FF:FF:FF:FF") == 0) { 
+  if (strcmp(ehdr->ether_dhost, iface->addr.data()) == 0 || strcmp(ehdr->ether_dhost, ETHER_BROADCAST_ADDRESS) == 0) { 
       if ( ehdr->ether_type == htons(ethertype_arp) ) //ARP
       {
         minlength += sizeof(arp_hdr);
