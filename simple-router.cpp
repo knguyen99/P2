@@ -215,7 +215,7 @@ SimpleRouter::handlePacket(const Buffer& packet, const std::string& inIface)
                 
                 
             }
-            else //if not return, drop packet
+            else //if not return, drop packet, send ICMP Port Unreachable
             {
               return;
             }
@@ -268,18 +268,20 @@ SimpleRouter::handlePacket(const Buffer& packet, const std::string& inIface)
               return; //next hop not found
             }
             const Interface* next_iface = findIfaceByName(rt_entry.ifName);
-            if(!next_iface)
-            {
-              return; //next iface not found
-            }
+            //lookup arp cache
             std::shared_ptr<ArpEntry> next_arp = m_arp.lookup(rt_entry.gw);
             if(next_arp) //forward packet
             {
-              
+              ethernet_hdr* hdr = (ethernet_hdr*)(packet.data());
+              memcpy(hdr->dhost,next_arp->mac,sizeof(next_arp->mac));
+              memcpy(hdr->shost,next_arp->addr,sizeof(next_arp->addr));
+              hdr->ether_type = htons(ethertype_ip);
+              sendPacket(packet, next_iface->name)
             }
             else //cache packet adn send arp request
             {
-
+              std::shared_ptr<ArpRequest> queue = m_arp.queueRequest(hdr->ip_dst, packet, next_iface->name);
+              
             }
           }
 
