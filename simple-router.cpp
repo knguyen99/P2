@@ -202,7 +202,7 @@ SimpleRouter::handlePacket(const Buffer& packet, const std::string& inIface)
                     icmp_head->icmp_code = 3;
                     icmp_head->unused = 0;
                     icmp_head->next_mtu = 0;
-                    memcpy(icmp_head->data, hdr, sizeof(ip_hdr));
+                    memcpy(icmp_head->data, hdr, sizeof(ip_hdr) + 8 * sizeof(uint8_t)); // data is ip hdr + first 8 bytes of payload
                     icmp_head->icmp_sum = 0;
                     icmp_head->icmp_sum = cksum((uint8_t*)icmp_head, sizeof(icmp_hdr));
                     
@@ -226,14 +226,13 @@ SimpleRouter::handlePacket(const Buffer& packet, const std::string& inIface)
             if(hdr->ttl <= 0) //ttl exceeded, send ICMP Time Exceeded 
             {
                 // TODO: generate ICMP time exceeded message
-                                    // send echo reply
-                Buffer icmp_time_exceed(sizeof(ethernet_hdr) + sizeof(ip_hdr) + sizeof(icmp_hdr));
+                Buffer icmp_time_exceed(sizeof(ethernet_hdr) + sizeof(ip_hdr) + sizeof(icmp_t3_hdr));
                 uint8_t* icmp_reply_buf = (uint8_t*)icmp_time_exceed.data();
 
-                // construct ethernet frame (is this needed) ???????
+                // construct ethernet frame 
                 ethernet_hdr* icmp_ether_hdr = (ethernet_hdr*)icmp_reply_buf;
-                icmp_ether_hdr->ether_shost = ehdr->ether_dhost;
-                icmp_ether_hdr->ether_dhost = ehdr->ether_shost;
+                icmp_ether_hdr->ether_shost = iface->addr; 
+                icmp_ether_hdr->ether_dhost = ehdr->ether_shost;// send back
                 icmp_ether_hdr->ether_type = ehdr->ether_type;
 
                 // construct IP header
@@ -246,9 +245,13 @@ SimpleRouter::handlePacket(const Buffer& packet, const std::string& inIface)
                 icmp_ip_hdr->ip_sum = cksum((uint8_t*)icmp_ip_hdr, sizeof(ip_hdr));
 
                 // construct ICMP 
-                icmp_hdr* icmp_head = (icmp_hdr*)(icmp_ip_hdr + sizeof(ip_hdr));
+                icmp_t3_hdr* icmp_head = (icmp_t3_hdr*)(icmp_ip_hdr + sizeof(ip_hdr));
                 icmp_head->icmp_type = 11;
                 icmp_head->icmp_code = 0;
+            
+                icmp_head->unused = 0;
+                icmp_head->next_mtu = 0;
+                memcpy(icmp_head->data, hdr, sizeof(ip_hdr) + 8 * sizeof(uint8_t)); // data is ip hdr + first 8 bytes of payload
                 icmp_head->icmp_sum = 0;
                 icmp_head->icmp_sum = cksum((uint8_t*)icmp_head, sizeof(icmp_hdr));
 
