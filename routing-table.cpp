@@ -39,11 +39,11 @@ RoutingTable::lookup(uint32_t ip) const
 
   copy_entries.sort([](const RoutingTableEntry & entry1, const RoutingTableEntry & entry2)
       {
-          return entry1->mask > entry2->mask;
+          return entry1.mask > entry2.mask;
       }
     );
 
-  for(auto it = copy_entries.begin(); it != copy_entries.end; it++)
+  for(auto it = copy_entries.begin(); it != copy_entries.end(); it++)
   {
     uint32_t it_mask = it->dest & it->mask;
     uint32_t ip_mask = ip & it->mask;
