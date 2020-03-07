@@ -51,7 +51,7 @@ SimpleRouter::handlePacket(const Buffer& packet, const std::string& inIface)
         return;
     }
     std::string packetMACaddr = macToString(packet); // get dest MAC address
-    const std::string ETHER_BROADCAST_ADDRESS = "FF:FF:FF:FF:FF:FF";
+    static const uint8_t ETHER_BROADCAST_ADDRESS[ETHER_ADDR_LEN] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
     // if MAC address equals destination address (destination is router) or destination is broadcast address
     if (packetMACaddr == macToString(iface->addr) || (packetMACaddr == ETHER_BROADCAST_ADDRESS)) {
         if (ehdr->ether_type == htons(ethertype_arp)) //ARP
