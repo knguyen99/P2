@@ -46,7 +46,7 @@ ArpCache::periodicCheckArpRequestsAndCacheEntries()
     const uint8_t BroadcastEtherAddr[ETHER_ADDR_LEN] = { 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF };
 	std::list<std::shared_ptr<ArpEntry>> removeArpEntries;
     std::list<std::shared_ptr<ArpRequest>> removeArpRequests;
-    for (auto req = m_arpRequests.begin(); req != m_arpRequests.end(); req++) {
+    for (auto req = m_arpRequests.begin(); req != m_arpRequests.end();) {
 		
 		// handle request, by sending an arp request about once/second
 
@@ -87,6 +87,7 @@ ArpCache::periodicCheckArpRequestsAndCacheEntries()
             (*req)->nTimesSent++;
 
             // move to next request
+            req++;
 		}
 
         else { // remove the request 
@@ -95,7 +96,7 @@ ArpCache::periodicCheckArpRequestsAndCacheEntries()
                 pack = (*req)->packets.erase(pack);
             }
             // remove pending request from queue mark for deletion
-            removeArpRequests.push_back(*req);
+            req = m_arpRequests.erase(req);
             
             
             
@@ -106,8 +107,7 @@ ArpCache::periodicCheckArpRequestsAndCacheEntries()
     }
 
     //remove pending requests marked for deletion
-    for (auto removeMe = removeArpRequests.begin(); removeMe != removeArpRequests.end(); removeMe++)
-        removeRequest(*removeMe);
+
         
 
 
