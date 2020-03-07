@@ -43,8 +43,10 @@ ArpCache::periodicCheckArpRequestsAndCacheEntries()
 			record entry for removal
 	remove all entries marked for removal
 */
-	std::list<std::shared_ptr<ArpEntry >> removeArpRequests;
-    for (auto req = m_arpRequests.begin(); req != m_arpRequests.end();) {
+    const uint8_t BroadcastEtherAddr[ETHER_ADDR_LEN] = { 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF };
+	std::list<std::shared_ptr<ArpEntry>> removeArpEntries;
+    std::list<std::shared_ptr<ArpRequest>> removeArpRequests;
+    for (auto req = m_arpRequests.begin(); req != m_arpRequests.end(); req++) {
 		
 		// handle request, by sending an arp request about once/second
 
@@ -60,8 +62,8 @@ ArpCache::periodicCheckArpRequestsAndCacheEntries()
 			std::string name = (*req)->packets.front().iface;
 			const Interface* iface = m_router.findIfaceByName(name);
 			
-			memset(req_ehdr->ether_dhost, 0xFF , ETHER_ADDR_LEN);
-			memcpy(req_ehdr->ether_shost, iface->addr.data(), sizeof(iface->addr));
+			memcpy(req_ehdr->ether_dhost, BroadcastEtherAddr , ETHER_ADDR_LEN);
+			memcpy(req_ehdr->ether_shost, iface->addr.data(), ETHER_ADDR_LEN);
 			req_ehdr->ether_type = htons(ethertype_arp);
 
 			// create ARP req header
@@ -71,9 +73,9 @@ ArpCache::periodicCheckArpRequestsAndCacheEntries()
             req_ahdr->arp_hln = 0x06;
             req_ahdr->arp_pln = 0x04;
             req_ahdr->arp_op = htons(arp_op_request);
-            memcpy(req_ahdr->arp_sha, iface->addr.data(), sizeof(iface->addr));
+            memcpy(req_ahdr->arp_sha, iface->addr.data(), ETHER_ADDR_LEN);
             req_ahdr->arp_sip = iface->ip;
-            memset(req_ahdr->arp_tha, 0xFF, ETHER_ADDR_LEN);
+            memcpy(req_ahdr->arp_tha, BroadcastEtherAddr, ETHER_ADDR_LEN);
             req_ahdr->arp_tip = (*req)->ip;
 
 
@@ -85,7 +87,6 @@ ArpCache::periodicCheckArpRequestsAndCacheEntries()
             (*req)->nTimesSent++;
 
             // move to next request
-            req++;
 		}
 
         else { // remove the request 
@@ -93,8 +94,9 @@ ArpCache::periodicCheckArpRequestsAndCacheEntries()
             for (auto pack = (*req)->packets.begin(); pack != (*req)->packets.end();) {
                 pack = (*req)->packets.erase(pack);
             }
-            // remove pending request from queue
-            removeRequest(*req);
+            // remove pending request from queue mark for deletion
+            removeArpRequests.push_back(*req);
+            
             
             
         }
@@ -102,16 +104,22 @@ ArpCache::periodicCheckArpRequestsAndCacheEntries()
 
 
     }
+
+    //remove pending requests marked for deletion
+    for (auto removeMe = removeArpRequests.begin(); removeMe != removeArpRequests.end(); removeMe++)
+        removeRequest(*removeMe);
+        
+
 
     // record any invalid cache entries
     for (auto cacheEntry : m_cacheEntries) {
         if (!cacheEntry->isValid) {
-            removeArpRequests.push_back(cacheEntry); // record for removal
+            removeArpEntries.push_back(cacheEntry); // record for removal
         }
     }
 
 	// remove entries marked for removal
-    for (auto removeMe = removeArpRequests.begin(); removeMe != removeArpRequests.end(); ) {
+    for (auto removeMe = removeArpEntries.begin(); removeMe != removeArpEntries.end(); ) {
         removeMe = m_cacheEntries.erase(removeMe);
 	}
 	/*
