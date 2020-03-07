@@ -74,7 +74,7 @@ SimpleRouter::handlePacket(const Buffer& packet, const std::string& inIface)
             //fill in ethernet header
             ethernet_hdr* rep_ehdr = (ethernet_hdr*)rp_buf;
             memcpy(rep_ehdr->ether_dhost, hdr->arp_sha, sizeof(hdr->arp_sha));
-            memcpy(rep_ehdr->ether_shost,arp_iface->addr,sizeof(arp_iface->addr));
+            memcpy(rep_ehdr->ether_shost,arp_iface->addr.data(),sizeof(arp_iface->addr.data()));
             rep_ehdr->ether_type = htons(ethertype_arp);
 
             //fill in arp header
@@ -84,7 +84,7 @@ SimpleRouter::handlePacket(const Buffer& packet, const std::string& inIface)
             rep_ahdr->arp_hln = 0x06;
             rep_ahdr->arp_pln = 0x04;
             rep_ahdr->arp_op = htons(arp_op_reply);
-            memcpy(rep_ahdr->arp_sha, arp_iface->addr, sizeof(arp_iface->addr));
+            memcpy(rep_ahdr->arp_sha, arp_iface->addr.data(), sizeof(arp_iface->addr.data()));
             rep_ahdr->arp_sip = arp_iface->ip;
             memcpy(rep_ahdr->arp_tha, hdr->sha, sizeof(hdr->sha));
             rep_ahdr->arp_tip = hdr->arp_sip;
@@ -276,15 +276,39 @@ SimpleRouter::handlePacket(const Buffer& packet, const std::string& inIface)
             if(next_arp) //forward packet
             {
               ethernet_hdr* hdr = (ethernet_hdr*)(packet.data());
-              memcpy(hdr->dhost,next_arp->mac,sizeof(next_arp->mac));
-              memcpy(hdr->shost,next_arp->addr,sizeof(next_arp->addr));
+              memcpy(hdr->dhost,next_arp->mac.data(),sizeof(next_arp->mac.data()));
+              memcpy(hdr->shost,next_iface->addr.data(),sizeof(next_iface->addr.data()));
               hdr->ether_type = htons(ethertype_ip);
               sendPacket(packet, next_iface->name)
             }
             else //cache packet adn send arp request
             {
+              //queue
               std::shared_ptr<ArpRequest> queue = m_arp.queueRequest(hdr->ip_dst, packet, next_iface->name);
               
+              //send arp req
+              Buffer request_packet(sizeof(ethernet_hdr) + sizeof(arp_hdr));
+              uint8_t* rq_buf = request_packet.data();
+
+              //fill in ethernet header
+              ethernet_hdr* req_ehdr = (ethernet_hdr*)rq_buf;
+              memcpy(req_ehdr->ether_dhost, next_iface->addr.data(), sizeof(next_iface->arp_sha));
+              memcpy(req_ehdr->ether_dhost, ETHER_BROADCAST_ADDRESS, sizeof(ETHER_BROADCAST_ADDRESS));
+              req_ehdr->ether_type = htons(ethertype_arp);
+
+              //fill in arp headaer
+              arp_hdr* req_ahdr = (arp_hdr*)(rq_buf+sizeof(ethernet_hdr));
+              req_ahdr->arp_hrd = htons(arp_hrd_ethernet);
+              req_ahdr->arp_pro = htons(ethertype_ip);
+              req_ahdr->arp_hln = 0x06;
+              req_ahdr->arp_pln = 0x04;
+              req_ahdr->arp_op = htons(arp_op_request);
+              memcpy(req_ahdr->arp_sha, next_iface->addr.data(), sizeof(next_iface->addr.data()));
+              req_ahdr->arp_sip = next_iface->ip;
+              memcpy(req_ahdr->arp_tha, ETHER_BROADCAST_ADDRESS, sizeof(ETHER_BROADCAST_ADDRESS));
+              req_ahdr->arp_tip = hdr->arp_sip;
+
+              sendPacket(request_packet, next_iface->name);
             }
           }
 
