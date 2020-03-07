@@ -46,6 +46,12 @@ SimpleRouter::handlePacket(const Buffer& packet, const std::string& inIface)
     uint16_t ethtype = ethertype(data);
     ethernet_hdr* ehdr = (ethernet_hdr*)data;
 
+
+    // debug
+    print_hdrs(packet);
+    // debug
+
+
     size_t minlength = sizeof(ethernet_hdr);
     if (len < minlength) {
         fprintf(stderr, "ETHERNET header, insufficient length\n");
@@ -53,8 +59,11 @@ SimpleRouter::handlePacket(const Buffer& packet, const std::string& inIface)
     }
     std::string packetMACaddr = macToString(packet); // get dest MAC address
     const std::string ETHER_BROADCAST_ADDRESS = "FF:FF:FF:FF:FF:FF";
+    const std::string lowercase_ether_addr = "ff:ff:ff:ff:ff:ff";
     // if MAC address equals destination address (destination is router) or destination is broadcast address
-    if (packetMACaddr == macToString(iface->addr) || (packetMACaddr == ETHER_BROADCAST_ADDRESS)) {
+
+    if (packetMACaddr == macToString(iface->addr) || (packetMACaddr == ETHER_BROADCAST_ADDRESS) || (packetMACaddr == lowercase_ether_addr)) {
+
         if (ethtype == ethertype_arp) //ARP
         {
             minlength += sizeof(arp_hdr);
@@ -91,7 +100,11 @@ SimpleRouter::handlePacket(const Buffer& packet, const std::string& inIface)
                     memcpy(rep_ahdr->arp_tha, &(hdr->arp_sha), ETHER_ADDR_LEN);
                     rep_ahdr->arp_tip = hdr->arp_sip;
 
+                    print_hdrs(response_packet);
+                    
                     //full send bAYYbEEEE
+
+
                     sendPacket(response_packet, arp_iface->name);
                 }
                 else if (hdr->arp_op == htons(arp_op_reply)) //if receive reply
@@ -144,7 +157,7 @@ SimpleRouter::handlePacket(const Buffer& packet, const std::string& inIface)
                     {
                         icmp_hdr* icmp_msg = (icmp_hdr*)(hdr + sizeof(ip_hdr)); // icmp is payload of ip
                         // get type of icmp message
-                        uint8_t type = ntohs(icmp_msg->icmp_type);
+                        uint8_t type = icmp_msg->icmp_type;
 
                         //check if echo, otherwise send unreachable
                         if (type == 8) { // echo
@@ -176,10 +189,11 @@ SimpleRouter::handlePacket(const Buffer& packet, const std::string& inIface)
                             icmp_head->icmp_sum = cksum((uint8_t*)icmp_head, sizeof(icmp_hdr));
 
                             // send ICMP packet
+                            print_hdrs(icmp_reply);
 
                             sendPacket(icmp_reply, iface->name);
                         }
-                        else { // send icmp3 unreachable
+                       /* else { // send icmp3 unreachable
 
                             Buffer icmp_reply(sizeof(ethernet_hdr) + sizeof(ip_hdr) + sizeof(icmp_t3_hdr));
                             uint8_t* icmp_reply_buf = (uint8_t*)icmp_reply.data();
@@ -214,10 +228,10 @@ SimpleRouter::handlePacket(const Buffer& packet, const std::string& inIface)
 
 
                             // send ICMP packet
-
+                            print_hdrs(icmp_reply);
                             sendPacket(icmp_reply, iface->name);
 
-                        }
+                        }*/
 
 
                     }
@@ -256,7 +270,7 @@ SimpleRouter::handlePacket(const Buffer& packet, const std::string& inIface)
 
 
                         // send ICMP unreachable
-
+                        print_hdrs(icmp_reply);
                         sendPacket(icmp_reply, iface->name);
                     }
                 }
@@ -296,7 +310,7 @@ SimpleRouter::handlePacket(const Buffer& packet, const std::string& inIface)
                         icmp_head->icmp_sum = cksum((uint8_t*)icmp_head, sizeof(icmp_t3_hdr));
 
                         // send ICMP packet
-
+                        print_hdrs(icmp_time_exceed);
                         sendPacket(icmp_time_exceed, iface->name);
                         return;
                     }
@@ -341,7 +355,8 @@ SimpleRouter::handlePacket(const Buffer& packet, const std::string& inIface)
                         req_ahdr->arp_sip = next_iface->ip;
                         memcpy(req_ahdr->arp_tha, BroadcastEtherAddr, ETHER_ADDR_LEN);
                         req_ahdr->arp_tip = hdr->ip_dst;
-
+                            
+                        print_hdrs(request_packet);
                         sendPacket(request_packet, next_iface->name);
                     }
                   
