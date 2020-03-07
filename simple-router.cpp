@@ -155,14 +155,17 @@ SimpleRouter::handlePacket(const Buffer& packet, const std::string& inIface)
                 {
                     if (hdr->ip_p == ip_protocol_icmp) //if it carries ICMP, properly dispatch it 
                     {
-                        icmp_hdr* icmp_msg = (icmp_hdr*)(hdr + sizeof(ip_hdr)); // icmp is payload of ip
+                        icmp_hdr* icmp_msg = (icmp_hdr*)(packet.data() + sizeof(ethernet_hdr) + sizeof(ip_hdr)); // icmp is payload of ip
                         // get type of icmp message
                         uint8_t type = icmp_msg->icmp_type;
 
                         //check if echo, otherwise send unreachable
-                        if (type == 8) { // echo
+                        
+                        if (icmp_msg->icmp_type == 8) { // echo
                             // send echo reply
-                            Buffer icmp_reply(sizeof(ethernet_hdr) + sizeof(ip_hdr) + sizeof(icmp_hdr));
+                            // get data len
+                            int dataLen = packet.size() - (sizeof(ethernet_hdr) + sizeof(ip_hdr) + sizeof(icmp_hdr));
+                            Buffer icmp_reply(sizeof(ethernet_hdr) + sizeof(ip_hdr) + sizeof(icmp_hdr) + dataLen);
                             uint8_t* icmp_reply_buf = (uint8_t*)icmp_reply.data();
 
                             // construct ethernet frame
@@ -173,10 +176,15 @@ SimpleRouter::handlePacket(const Buffer& packet, const std::string& inIface)
 
                             // construct IP header
                             ip_hdr* icmp_ip_hdr = (ip_hdr*)(icmp_reply_buf + sizeof(ethernet_hdr));
+                            icmp_ip_hdr->ip_v = hdr->ip_v;
+                            icmp_ip_hdr->ip_hl = 5;
+                            icmp_ip_hdr->ip_tos = hdr->ip_tos;
+                            icmp_ip_hdr->ip_id = hdr->ip_id;
+                            icmp_ip_hdr->ip_off = hdr->ip_off;
                             icmp_ip_hdr->ip_src = ip_iface->ip;
                             icmp_ip_hdr->ip_dst = hdr->ip_src; // return to sender
                             icmp_ip_hdr->ip_p = ip_protocol_icmp;
-                            icmp_ip_hdr->ip_len = 36; // 20 from ip hdr, 8 from icmp
+                            icmp_ip_hdr->ip_len = hdr->ip_len; // 20 from ip hdr, 8 from icmp
                             icmp_ip_hdr->ip_ttl = 64; // maybe ???
                             icmp_ip_hdr->ip_sum = 0;
                             icmp_ip_hdr->ip_sum = cksum((uint8_t*)icmp_ip_hdr, sizeof(ip_hdr));
@@ -188,50 +196,55 @@ SimpleRouter::handlePacket(const Buffer& packet, const std::string& inIface)
                             icmp_head->icmp_sum = 0;
                             icmp_head->icmp_sum = cksum((uint8_t*)icmp_head, sizeof(icmp_hdr));
 
+                            
+                            // copy data
+                            memcpy(icmp_reply.data() + sizeof(ethernet_hdr) + sizeof(ip_hdr) + sizeof(icmp_hdr), packet.data() + sizeof(ethernet_hdr) + sizeof(ip_hdr) + sizeof(icmp_hdr), dataLen);
                             // send ICMP packet
                             print_hdrs(icmp_reply);
 
                             sendPacket(icmp_reply, iface->name);
                         }
-                       /* else { // send icmp3 unreachable
+                        /* else { // send icmp3 unreachable
 
-                            Buffer icmp_reply(sizeof(ethernet_hdr) + sizeof(ip_hdr) + sizeof(icmp_t3_hdr));
-                            uint8_t* icmp_reply_buf = (uint8_t*)icmp_reply.data();
+                             Buffer icmp_reply(sizeof(ethernet_hdr) + sizeof(ip_hdr) + sizeof(icmp_t3_hdr));
+                             uint8_t* icmp_reply_buf = (uint8_t*)icmp_reply.data();
 
-                            // construct ethernet frame
-                            ethernet_hdr* icmp_ether_hdr = (ethernet_hdr*)icmp_reply_buf;
-                            memcpy(icmp_ether_hdr->ether_shost, ehdr->ether_dhost, ETHER_ADDR_LEN);
-                            memcpy(icmp_ether_hdr->ether_dhost, ehdr->ether_shost, ETHER_ADDR_LEN);
-                            icmp_ether_hdr->ether_type = ehdr->ether_type;
+                             // construct ethernet frame
+                             ethernet_hdr* icmp_ether_hdr = (ethernet_hdr*)icmp_reply_buf;
+                             memcpy(icmp_ether_hdr->ether_shost, ehdr->ether_dhost, ETHER_ADDR_LEN);
+                             memcpy(icmp_ether_hdr->ether_dhost, ehdr->ether_shost, ETHER_ADDR_LEN);
+                             icmp_ether_hdr->ether_type = ehdr->ether_type;
 
-                            // construct IP header
-                            ip_hdr* icmp_ip_hdr = (ip_hdr*)(icmp_reply_buf + sizeof(ethernet_hdr));
-                            icmp_ip_hdr->ip_src = ip_iface->ip;
-                            icmp_ip_hdr->ip_dst = hdr->ip_src; // return to sender
-                            icmp_ip_hdr->ip_p = ip_protocol_icmp;
-                            icmp_ip_hdr->ip_ttl = 64; // maybe ??? 
-                            icmp_ip_hdr->ip_len = 56; // 2o from ip hdr, 8 from icmp, 28 from icmp data
+                             // construct IP header
+                             ip_hdr* icmp_ip_hdr = (ip_hdr*)(icmp_reply_buf + sizeof(ethernet_hdr));
+                             icmp_ip_hdr->ip_src = ip_iface->ip;
+                             icmp_ip_hdr->ip_dst = hdr->ip_src; // return to sender
+                             icmp_ip_hdr->ip_p = ip_protocol_icmp;
+                             icmp_ip_hdr->ip_ttl = 64; // maybe ???
+                             icmp_ip_hdr->ip_len = 56; // 2o from ip hdr, 8 from icmp, 28 from icmp data
 
-                            icmp_ip_hdr->ip_sum = 0;
-                            icmp_ip_hdr->ip_sum = cksum((uint8_t*)icmp_ip_hdr, sizeof(ip_hdr));
-
-
-                            // construct ICMP 
-                            icmp_t3_hdr* icmp_head = (icmp_t3_hdr*)(icmp_ip_hdr + sizeof(icmp_t3_hdr));
-                            icmp_head->icmp_type = 3;
-                            icmp_head->icmp_code = 3;
-                            icmp_head->unused = 0;
-                            icmp_head->next_mtu = 0;
-                            memcpy(icmp_head->data, hdr, ICMP_DATA_SIZE); // data is ip hdr + first 8 bytes of payload
-                            icmp_head->icmp_sum = 0;
-                            icmp_head->icmp_sum = cksum((uint8_t*)icmp_head, sizeof(icmp_t3_hdr));
+                             icmp_ip_hdr->ip_sum = 0;
+                             icmp_ip_hdr->ip_sum = cksum((uint8_t*)icmp_ip_hdr, sizeof(ip_hdr));
 
 
-                            // send ICMP packet
-                            print_hdrs(icmp_reply);
-                            sendPacket(icmp_reply, iface->name);
+                             // construct ICMP
+                             icmp_t3_hdr* icmp_head = (icmp_t3_hdr*)(icmp_ip_hdr + sizeof(icmp_t3_hdr));
+                             icmp_head->icmp_type = 3;
+                             icmp_head->icmp_code = 3;
+                             icmp_head->unused = 0;
+                             icmp_head->next_mtu = 0;
+                             memcpy(icmp_head->data, hdr, ICMP_DATA_SIZE); // data is ip hdr + first 8 bytes of payload
+                             icmp_head->icmp_sum = 0;
+                             icmp_head->icmp_sum = cksum((uint8_t*)icmp_head, sizeof(icmp_t3_hdr));
 
-                        }*/
+
+                             // send ICMP packet
+                             print_hdrs(icmp_reply);
+                             sendPacket(icmp_reply, iface->name);
+
+                         }*/
+                        else
+                            fprintf(stderr,"%d\n", icmp_msg->icmp_type);
 
 
                     }
