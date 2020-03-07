@@ -320,7 +320,29 @@ SimpleRouter::handlePacket(const Buffer& packet, const std::string& inIface)
                     else //cache packet adn send arp request
                     {
                         std::shared_ptr<ArpRequest> queue = m_arp.queueRequest(hdr->ip_dst, packet, next_iface->name);
+                        //send arp req
+                        Buffer request_packet(sizeof(ethernet_hdr) + sizeof(arp_hdr));
+                        uint8_t* rq_buf = request_packet.data();
 
+                        //fill in ethernet header
+                        ethernet_hdr* req_ehdr = (ethernet_hdr*)rq_buf;
+                        memcpy(req_ehdr->ether_dhost, next_iface->addr.data(), sizeof(next_iface->addr));
+                        memset(req_ehdr->ether_dhost, 0xFF, ETHER_ADDR_LEN);
+                        req_ehdr->ether_type = htons(ethertype_arp);
+
+                        //fill in arp headaer
+                        arp_hdr* req_ahdr = (arp_hdr*)(rq_buf + sizeof(ethernet_hdr));
+                        req_ahdr->arp_hrd = htons(arp_hrd_ethernet);
+                        req_ahdr->arp_pro = htons(ethertype_ip);
+                        req_ahdr->arp_hln = 0x06;
+                        req_ahdr->arp_pln = 0x04;
+                        req_ahdr->arp_op = htons(arp_op_request);
+                        memcpy(req_ahdr->arp_sha, next_iface->addr.data(), sizeof(next_iface->addr));
+                        req_ahdr->arp_sip = next_iface->ip;
+                        memset(req_ahdr->arp_tha, 0xFF, ETHER_ADDR_LEN);
+                        req_ahdr->arp_tip = hdr->ip_dst;
+
+                        sendPacket(request_packet, next_iface->name);
                     }
                   
                 }
