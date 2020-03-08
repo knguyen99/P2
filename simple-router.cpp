@@ -298,11 +298,9 @@ SimpleRouter::handlePacket(const Buffer& packet, const std::string& inIface)
                 }
                 else //not destined for router, forward
                 {
-                    hdr->ip_ttl -= 1;
-                    fprintf(stderr, "\nforwarding\n");
+                    hdr->ip_ttl -= 1;             
                     if (hdr->ip_ttl <= 0) //ttl exceeded, send ICMP Time Exceeded 
-                    {
-                        fprintf(stderr, "ttl exceeded\n");
+                    {             
                         Buffer icmp_time_exceed(sizeof(ethernet_hdr) + sizeof(ip_hdr) + sizeof(icmp_t3_hdr));
                         uint8_t* icmp_reply_buf = (uint8_t*)icmp_time_exceed.data();
 
@@ -310,22 +308,22 @@ SimpleRouter::handlePacket(const Buffer& packet, const std::string& inIface)
                         ethernet_hdr* icmp_ether_hdr = (ethernet_hdr*)icmp_reply_buf;
                         memcpy(icmp_ether_hdr->ether_shost, iface->addr.data(), ETHER_ADDR_LEN);
                         memcpy(icmp_ether_hdr->ether_dhost, ehdr->ether_shost, ETHER_ADDR_LEN);
-                        icmp_ether_hdr->ether_type = ehdr->ether_type;
-
+                        icmp_ether_hdr->ether_type = htons(ethertype_ip);
+                        
                         // construct IP header
-                        ip_hdr* icmp_ip_hdr = (ip_hdr*)(icmp_reply_buf + sizeof(ethernet_hdr));
-                        icmp_ip_hdr->ip_v = hdr->ip_v;
-                        icmp_ip_hdr->ip_hl = hdr->ip_hl;
-                        icmp_ip_hdr->ip_tos = hdr->ip_tos;
-                        icmp_ip_hdr->ip_id = hdr->ip_id;
+                        ip_hdr* icmp_ip_hdr = (ip_hdr*)(icmp_time_exceed.data() + sizeof(ethernet_hdr));
+                        icmp_ip_hdr->ip_v = hdr->ip_v;                  
+                        icmp_ip_hdr->ip_hl = hdr->ip_hl;              
+                        icmp_ip_hdr->ip_tos = hdr->ip_tos;       
+                        icmp_ip_hdr->ip_id = hdr->ip_id;         
                         icmp_ip_hdr->ip_off = hdr->ip_off;
-                        icmp_ip_hdr->ip_src = ip_iface->ip;
+                        icmp_ip_hdr->ip_p = ip_protocol_icmp;                      
+                        icmp_ip_hdr->ip_ttl = 64; // maybe ???      
+                        icmp_ip_hdr->ip_len = htons(56); // 20 from ip hdr, 8 from icmp, 28 from icmp data              
+                        icmp_ip_hdr->ip_src = hdr->ip_dst;
                         icmp_ip_hdr->ip_dst = hdr->ip_src; // return to sender
-                        icmp_ip_hdr->ip_p = ip_protocol_icmp;
-                        icmp_ip_hdr->ip_ttl = 64; // maybe ???
-                        icmp_ip_hdr->ip_len = htons(56); // 2o from ip hdr, 8 from icmp, 28 from icmp data
                         icmp_ip_hdr->ip_sum = 0;
-                        icmp_ip_hdr->ip_sum = cksum((uint8_t*)icmp_ip_hdr, sizeof(ip_hdr));
+                        icmp_ip_hdr->ip_sum = cksum(icmp_ip_hdr, sizeof(ip_hdr));
 
                         // construct ICMP 
                         icmp_t3_hdr* icmp_head = (icmp_t3_hdr*)(icmp_reply_buf + sizeof(ethernet_hdr) + sizeof(ip_hdr));
