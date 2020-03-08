@@ -306,6 +306,7 @@ SimpleRouter::handlePacket(const Buffer& packet, const std::string& inIface)
 
                         // construct ethernet frame 
                         ethernet_hdr* icmp_ether_hdr = (ethernet_hdr*)icmp_reply_buf;
+                        
                         memcpy(icmp_ether_hdr->ether_shost, iface->addr.data(), ETHER_ADDR_LEN);
                         memcpy(icmp_ether_hdr->ether_dhost, ehdr->ether_shost, ETHER_ADDR_LEN);
                         icmp_ether_hdr->ether_type = htons(ethertype_ip);
@@ -320,7 +321,7 @@ SimpleRouter::handlePacket(const Buffer& packet, const std::string& inIface)
                         icmp_ip_hdr->ip_p = ip_protocol_icmp;                      
                         icmp_ip_hdr->ip_ttl = 64; // maybe ???      
                         icmp_ip_hdr->ip_len = htons(56); // 20 from ip hdr, 8 from icmp, 28 from icmp data              
-                        icmp_ip_hdr->ip_src = hdr->ip_dst;
+                        icmp_ip_hdr->ip_src = iface->ip;
                         icmp_ip_hdr->ip_dst = hdr->ip_src; // return to sender
                         icmp_ip_hdr->ip_sum = 0;
                         icmp_ip_hdr->ip_sum = cksum(icmp_ip_hdr, sizeof(ip_hdr));
